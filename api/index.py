@@ -1,7 +1,7 @@
 import os
 import re
 from urllib.parse import urlparse, parse_qs
-from flask import Flask, request, jsonify, redirect
+from flask import Flask, request, jsonify, Response
 
 app = Flask(__name__)
 
@@ -20,8 +20,6 @@ def catch_all(path):
 def get_pfp():
     try:
         url = request.args.get('url')
-        should_redirect = request.args.get('redirect') in ['1', 'true']
-
         if not url:
             return jsonify({"error": "Missing required query param: url"}), 400
 
@@ -63,7 +61,7 @@ def get_pfp():
             }
             
             resp = requests.get(m_url, headers=headers)
-            resp.raise_for_status() # Will raise an exception for 4xx/5xx status codes
+            resp.raise_for_status()
             
             html = resp.text
             match = re.search(r'"userID":"(\d+)"', html)
@@ -75,7 +73,6 @@ def get_pfp():
 
         # 4) Build the Graph picture URL
         token = os.environ.get('FB_GRAPH_TOKEN')
-        
         if not token:
             return jsonify({
                 "error": "API is not configured. The FB_GRAPH_TOKEN environment variable must be set on Vercel."
@@ -84,15 +81,19 @@ def get_pfp():
         picture_base = f"https://graph.facebook.com/{fb_id}/picture?width=5000"
         image_url = f"{picture_base}&access_token={token}"
 
-        # Optional caching
-        headers = {
-            "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800"
-        }
+        # 5) Fetch the image and serve it as a proxy to hide the token
+        import requests
+        image_resp = requests.get(image_url, stream=True)
+        image_resp.raise_for_status()
 
-        if should_redirect:
-            return redirect(image_url, code=302)
+        # Get the content type from the original image response
+        content_type = image_resp.headers.get('Content-Type', 'image/jpeg')
 
-        return jsonify({"id": fb_id, "imageUrl": image_url}), 200, headers
+        # Create a Flask response that streams the image data
+        response = Response(image_resp.iter_content(chunk_size=8192), content_type=content_type)
+        response.headers['Cache-Control'] = 'public, s-maxage=86400, stale-while-revalidate=604800'
+        
+        return response
 
     except Exception as e:
         print(f"Internal Server Error: {e}")
