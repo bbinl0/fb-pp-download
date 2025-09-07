@@ -1,9 +1,0 @@
-{
-  "name": "fb-pfp-api-v2",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "engines": {
-    "node": "18.x"
-  }
-}
