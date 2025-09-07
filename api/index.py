@@ -75,8 +75,14 @@ def get_pfp():
 
         # 4) Build the Graph picture URL
         token = os.environ.get('FB_GRAPH_TOKEN')
+        
+        if not token:
+            return jsonify({
+                "error": "API is not configured. The FB_GRAPH_TOKEN environment variable must be set on Vercel."
+            }), 500
+
         picture_base = f"https://graph.facebook.com/{fb_id}/picture?width=5000"
-        image_url = f"{picture_base}&access_token={token}" if token else picture_base
+        image_url = f"{picture_base}&access_token={token}"
 
         # Optional caching
         headers = {
